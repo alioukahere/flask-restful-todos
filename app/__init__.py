@@ -1,99 +1,108 @@
-from flask import Flask
-from flask_restful import Resource, Api, reqparse
+from flask import Flask, request
+from flask_restful import Resource, Api
+from flask_sqlalchemy import SQLAlchemy
+from marshmallow_sqlalchemy import ModelSchema
+from marshmallow import fields
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://<username>:<password>@localhost:3306/<db_name>'
+
+db = SQLAlchemy(app)
+
 api = Api(app)
-parser = reqparse.RequestParser()
-parser.add_argument('task', type=str, required=True,
-    help='Veillez renseigner le libéllé de la tache.', location='json')
-parser.add_argument('is_done', type=bool, default=False, location='json')
 
-todos = [
-    {
-        'todo_id': 1,
-        'task': 'Suivre le cours Python sur Kaherecode',
-        'is_done': False,
-    },
-    {
-        'todo_id': 2,
-        'task': 'Faire la vaisselle',
-        'is_done': True,
-    },
-]
-
-class Todo(object):
+class Todo(db.Model):
     """docstring for Todo"""
-    def __init__(self, todo_id, task, is_done=False):
-        self.todo_id = todo_id
+    __tablename__ = 'todos' # The table name in the database
+    id = db.Column(db.Integer, primary_key=True)
+    task = db.Column(db.String(255))
+    is_done = db.Column(db.Boolean)
+
+    def __init__(self, task, is_done=False):
         self.task = task
         self.is_done = is_done
 
+    def create(self):
+        db.session.add(self)
+        db.session.commit()
+        return self
+
+class TodoSchema(ModelSchema):
+    """docstring for TodoSchema"""
+    class Meta(ModelSchema.Meta):
+        """docstring for Meta"""
+        model = Todo
+        sqla_session = db.session
+
+    id = fields.Number(dump_only=True)
+    task = fields.String(required=True)
+    is_done = fields.Boolean(reqparse=True)
 
 class TodoCollection(Resource):
     """docstring for TodoCollection"""
     def get(self):
-        return todos
+        todos = Todo.query.all() # select * from todos
+        schema = TodoSchema
+        data = schema(many=True).dump(todos)
+        return data
 
     def post(self):
-        data = parser.parse_args()
+        data = request.get_json()
+        schema = TodoSchema()
+        todo = schema.load(data)
+        result = schema.dump(todo.create())
 
-        todo = Todo(len(todos)+1, data['task'], data['is_done'])
-        todos.append(todo.__dict__)
-
-        return todo.__dict__
-
+        return result
 
 class TodoItem(Resource):
     """docstring for TodoItem"""
-    def __init__(self):
-        self.parser = reqparse.RequestParser()
-        self.parser.add_argument('task', type=str, location='json')
-        self.parser.add_argument('is_done', type=bool, location='json')
-
     def get(self, todo_id):
-        try:
-            return todos[todo_id-1]
-        except IndexError as e:
+        todo = Todo.query.get(todo_id) # select * from todos where id = todo_id
+
+        if todo:
+            schema = TodoSchema()
+            result = schema.dump(todo)
+
+            return result
+        else:
             return {
                 'message': 'La ressoure {} n\'existe pas.'.format(todo_id)
             }
 
     def put(self, todo_id):
-        if todo_id <= 0 or todo_id > len(todos):
+        data = request.get_json()
+        todo = Todo.query.get(todo_id)
+
+        if todo:
+            for key, value in data.items():
+                setattr(todo, key, value)
+
+            db.session.add(todo)
+            db.session.commit()
+            schema = TodoSchema()
+            result = schema.dump(todo)
+
+            return result
+        else:
             return {
                 'message': 'La ressoure {} n\'existe pas.'.format(todo_id)
             }
-
-        todo = todos[todo_id-1]
-        data = self.parser.parse_args()
-
-        # if data['task']:
-        #     todo['task'] = data['task']
-        # if data['is_done']:
-        #     todo['is_done'] = data['is_done']
-
-        for key, value in data.items():
-            if value:
-                todo[key] = value
-
-        todos[todo_id-1] = todo
-
-        return todo
 
     def delete(self, todo_id):
-        if todo_id <= 0 or todo_id > len(todos):
+        todo = Todo.query.get(todo_id)
+
+        if todo:
+            db.session.delete(todo)
+            db.session.commit()
+
+            return TodoSchema().dump(todo)
+        else:
             return {
                 'message': 'La ressoure {} n\'existe pas.'.format(todo_id)
             }
-
-        todo = todos.pop(todo_id-1)
-
-        return todo
-
 
 api.add_resource(TodoCollection, '/todos/')
 api.add_resource(TodoItem, '/todos/<int:todo_id>')
-
 
 if __name__ == '__main__':
     app.run(debug=True)
