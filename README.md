@@ -16,6 +16,21 @@ Then install the dependencies with ``pip``:
 $ pip install -r requirements.txt
 ```
 
+Set your database access in <code>__init__.py</code>
+
+```python
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://<username>:<password>@localhost:3306/<db_name>'
+```
+
+Replace <code><username></code> by your database user <code><password></code> by his password and <code><db_name></code> by your database name.
+
+Open a python interpreter and create the tables:
+
+```python
+>>> from app import db
+>>> db.create_all()
+```
+
 ## Run the app
 
 To run the app:
