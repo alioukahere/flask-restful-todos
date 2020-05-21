@@ -22,7 +22,11 @@ Set your database access in <code>__init__.py</code>
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://<username>:<password>@localhost:3306/<db_name>'
 ```
 
-Replace <code><username></code> by your database user <code><password></code> by his password and <code><db_name></code> by your database name.
+Replace <code>username</code> by your database user <code>password</code> by his password and <code>db_name</code> by your database name.It must look like this:
+
+```python
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:password@localhost:3306/db'
+```
 
 Open a python interpreter and create the tables:
 
